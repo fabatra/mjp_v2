@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema Majopau - Gestão e Emissão de Certificados</title>
+    <style>
+        :root {
+            --primary: #0056b3;
+            --primary-dark: #003d80;
+            --danger: #b30000;
+            --bg: #f4f7f6;
+            --card-bg: #ffffff;
+        }
+
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; background-color: var(--bg); color: #333; }
+        
+        /* NAV TABS */
+        .navbar { background: #1e293b; color: white; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; }
+        .navbar h1 { margin: 0; font-size: 18px; color: #fff; }
+        .nav-tabs { display: flex; gap: 10px; background: #334155; padding: 8px 20px; }
+        .tab-btn { background: transparent; border: none; color: #cbd5e1; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 13px; }
+        .tab-btn.active { background: var(--primary); color: white; }
+
+        .content { max-width: 1000px; margin: 20px auto; padding: 0 15px; }
+        .tab-content { display: none; background: var(--card-bg); padding: 20px; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+        .tab-content.active { display: block; }
+
+        /* FORMULÁRIOS & TABELAS */
+        .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px; margin-bottom: 15px; }
+        .form-group { display: flex; flex-direction: column; }
+        .form-group label { font-size: 11px; font-weight: bold; margin-bottom: 4px; text-transform: uppercase; color: #475569; }
+        .form-group input, .form-group select { padding: 8px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 13px; }
+        
+        .btn { padding: 9px 18px; background: var(--primary); color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 13px; }
+        .btn:hover { background: var(--primary-dark); }
+        .btn-secondary { background: #64748b; }
+        .btn-secondary:hover { background: #475569; }
+
+        table.data-table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 12px; }
+        table.data-table th, table.data-table td { border: 1px solid #e2e8f0; padding: 8px; text-align: left; }
+        table.data-table th { background: #f8fafc; font-weight: bold; }
+
+        /* LAYOUT OFICIAL DO CERTIFICADO (IMPRESSÃO) */
+        .cert-container { border: 1px solid #666; padding: 20px; background: white; font-size: 11px; }
+        .cert-header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 5px; margin-bottom: 10px; }
+        .cert-title-section { display: flex; justify-content: space-between; font-weight: bold; font-size: 12px; margin-bottom: 10px; }
+        .cert-section-title { background: #e2e8f0; padding: 4px; font-weight: bold; margin-top: 10px; text-align: center; border: 1px solid #94a3b8; text-transform: uppercase; }
+        
+        table.cert-table { width: 100%; border-collapse: collapse; margin-top: 5px; }
+        table.cert-table th, table.cert-table td { border: 1px solid #666; text-align: center; padding: 3px; font-size: 10px; }
+        table.cert-table td input { width: 90%; border: none; text-align: center; font-size: 10px; }
+
+        .cert-signatures { display: flex; justify-content: space-between; margin-top: 25px; text-align: center; font-size: 10px; }
+        .sig-line { border-top: 1px solid #000; width: 30%; padding-top: 4px; }
+
+        /* REGRAS DE IMPRESSÃO */
+        @media print {
+            .navbar, .nav-tabs, .no-print { display: none !important; }
+            body { background: white; }
+            .content { max-width: 100%; margin: 0; padding: 0; }
+            .tab-content { padding: 0; box-shadow: none; border: none; }
+            .cert-container { border: none; }
+            input, select { border: none !important; background: transparent !important; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="navbar">
+    <h1>MAJOPAU - Sistema de Gestão de Descontaminação</h1>
+    <span style="font-size: 12px; color: #94a3b8;">Versão 2.0 (Protótipo SPA)</span>
+</div>
+
+<div class="nav-tabs no-print">
+    <button class="tab-btn active" onclick="switchTab('tab-pesquisa')">🔍 Pesquisar / Histórico</button>
+    <button class="tab-btn" onclick="switchTab('tab-cadastro')">👤 Cadastrar Cliente / Veículo</button>
+    <button class="tab-btn" onclick="switchTab('tab-emissao')">📝 Emitir Certificado</button>
+    <button class="tab-btn" onclick="switchTab('tab-visualizar')">🖨️ Visualizar / Imprimir</button>
+</div>
+
+<div class="content">
+
+    <!-- 1. ABA DE PESQUISA / HISTÓRICO -->
+    <div id="tab-pesquisa" class="tab-content active">
+        <h2>Histórico de Certificados e Consultas</h2>
+        <div class="form-grid">
+            <div class="form-group" style="grid-column: span 2;">
+                <label>Buscar por Placa, Razão Social, CNPJ ou Nº MPJ:</label>
+                <input type="text" id="searchInput" placeholder="Digite para filtrar em tempo real..." oninput="filtrarCertificados()">
+            </div>
+        </div>
+
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Nº Certificado</th>
+                    <th>Data</th>
+                    <th>Razão Social</th>
+                    <th>CNPJ</th>
+                    <th>Placa</th>
+                    <th>Condutor</th>
+                    <th>Ação</th>
+                </tr>
+            </thead>
+            <tbody id="historicoTableBody">
+                <!-- Preenchido via JavaScript -->
+            </tbody>
+        </table>
+    </div>
+
+    <!-- 2. ABA DE CADASTRO DE CLIENTES -->
+    <div id="tab-cadastro" class="tab-content">
+        <h2>Cadastro de Novo Cliente e Veículo</h2>
+        <form id="formCliente" onsubmit="salvarCliente(event)">
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>CNPJ do Cliente:</label>
+                    <input type="text" id="cadCnpj" required placeholder="00.000.000/0000-00">
+                </div>
+                <div class="form-group" style="grid-column: span 2;">
+                    <label>Razão Social / Nome:</label>
+                    <input type="text" id="cadRazao" required placeholder="Nome completo da empresa">
+                </div>
+                <div class="form-group">
+                    <label>Placa Padrão do Veículo:</label>
+                    <input type="text" id="cadPlaca" required placeholder="ABC-1234">
+                </div>
+                <div class="form-group">
+                    <label>Nº do Equipamento:</label>
+                    <input type="text" id="cadEquipamento" required placeholder="1327041">
+                </div>
+                <div class="form-group">
+                    <label>Nome do Condutor Habitual:</label>
+                    <input type="text" id="cadCondutor" required placeholder="Nome do Motorista">
+                </div>
+                <div class="form-group">
+                    <label>CPF do Condutor:</label>
+                    <input type="text" id="cadCpfCondutor" required placeholder="000.000.000-00">
+                </div>
+            </div>
+            <button type="submit" class="btn">💾 Salvar Cliente no Banco de Dados</button>
+        </form>
+
+        <h3 style="margin-top: 25px;">Clientes Cadastrados</h3>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>CNPJ</th>
+                    <th>Razão Social</th>
+                    <th>Placa</th>
+                    <th>Nº Equip.</th>
+                    <th>Condutor</th>
+                </tr>
+            </thead>
+            <tbody id="clientesTableBody">
+                <!-- Preenchido via JS -->
+            </tbody>
+        </table>
+    </div>
+
+    <!-- 3. ABA DE EMISSÃO DE CERTIFICADO -->
+    <div id="tab-emissao" class="tab-content">
+        <h2>Emissão de Certificado de Descontaminação</h2>
+        <form onsubmit="gerarCertificado(event)">
+            <div class="form-grid">
+                <div class="form-group" style="grid-column: span 2;">
+                    <label>Selecione o Cliente Cadastrado:</label>
+                    <select id="selectClienteEmissao" onchange="preencherDadosCliente(this.value)" required>
+                        <option value="">-- Selecione um Cliente --</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Data de Emissão:</label>
+                    <input type="date" id="emissaoData" required>
+                </div>
+                <div class="form-group">
+                    <label>Horário de Início:</label>
+                    <input type="text" id="emissaoHora" value="13:00 HORAS" required>
+                </div>
+            </div>
+
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Processo Aplicado:</label>
+                    <input type="text" id="emissaoProcesso" value="Com Ventilação Forçada e Água">
+                </div>
+                <div class="form-group">
+                    <label>Detector de Gás (Nº Série):</label>
+                    <input type="text" id="emissaoDetector" value="C2260031016">
+                </div>
+                <div class="form-group">
+                    <label>Data Última Calibração:</label>
+                    <input type="date" id="emissaoCalibracao" value="2025-06-02">
+                </div>
+                <div class="form-group">
+                    <label>Possui Lacre?</label>
+                    <select id="emissaoLacre">
+                        <option value="Não">Não</option>
+                        <option value="Sim">Sim</option>
+                    </select>
+                </div>
+            </div>
+
+            <button type="submit" class="btn" style="background: #16a34a;">📜 Emitir e Gerar Relatório Final</button>
+        </form>
+    </div>
+
+    <!-- 4. ABA DE VISUALIZAÇÃO / IMPRESSÃO -->
+    <div id="tab-visualizar" class="tab-content">
+        <div class="no-print" style="margin-bottom: 15px; display: flex; justify-content: space-between;">
+            <h3>Visualização do Documento Final</h3>
+            <button class="btn" onclick="window.print()">🖨️ Imprimir / Salvar PDF</button>
+        </div>
+
+        <div class="cert-container" id="certDocumento">
+            <div class="cert-header">
+                <h2 style="margin: 0; color: var(--danger);">MAJOPAU TRANSPORTES DE COMBUSTÍVEIS LTDA</h2>
+                <p style="margin: 2px 0;">Rod. Governador Mario Covas, 517, KM 291, Nova Valverde, Cariacica, ES - CEP: 29.151-815<br>
+                CNPJ: 06.127.018/0001-35 | Fone/Fax: (27) 99997-4786</p>
+            </div>
+
+            <div class="cert-title-section">
+                <div>Código do registro: <span>10577-2022</span></div>
+                <div style="color: var(--danger);">CERTIFICADO DE DESCONTAMINAÇÃO <span id="vNumCertificado">MPJ00004293/2026</span></div>
+            </div>
+
+            <div class="cert-section-title">DADOS DO CLIENTE E DO VEÍCULO</div>
+            <div style="display: flex; gap: 10px; margin-top: 5px;">
+                <div style="flex: 2;"><b>Razão Social:</b> <span id="vRazao">-</span></div>
+                <div><b>CNPJ:</b> <span id="vCnpj">-</span></div>
+                <div><b>Placa:</b> <span id="vPlaca">-</span></div>
+                <div><b>Data:</b> <span id="vData">-</span></div>
+            </div>
+
+            <div class="cert-section-title">FINALIDADE & PROCESSO DE DESCONTAMINAÇÃO</div>
+            <p style="margin: 4px 0;"><b>Finalidade:</b> OUTROS: DESCONTAMINAÇÃO | <b>Processo:</b> <span id="vProcesso">Com Ventilação Forçada e Água</span></p>
+            <p style="margin: 2px 0; font-weight: bold;">PRAZO DE VALIDADE DO SERVIÇO: 24:00 HORAS.</p>
+
+            <div class="cert-section-title">DETALHES DOS COMPARTIMENTOS</div>
+            <table class="cert-table">
+                <thead>
+                    <tr>
+                        <th>Item</th><th>1º Comp.</th><th>2º Comp.</th><th>3º Comp.</th><th>4º Comp.</th><th>5º Comp.</th><th>6º Comp.</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td><b>Volume (L)</b></td><td>26.000</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+                    <tr><td><b>Produto</b></td><td>4A</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+                    <tr><td><b>Nº ONU</b></td><td>1824</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+                    <tr><td><b>Classe Risco</b></td><td>8</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td></tr>
+                    <tr><td><b>Vazão (l/min)</b></td><td>1200</td><td>1200</td><td>1200</td><td>1200</td><td>1200</td><td>1200</td></tr>
+                    <tr><td><b>Tempo</b></td><td>1 HORA</td><td>1 HORA</td><td>1 HORA</td><td>1 HORA</td><td>1 HORA</td><td>1 HORA</td></tr>
+                </tbody>
+            </table>
+
+            <div class="cert-section-title">DISPOSITIVOS DE SEGURANÇA & PARÂMETROS TÉCNICOS</div>
+            <p style="margin: 4px 0;">
+                <b>Lacre:</b> <span id="vLacre">Não</span> | 
+                <b>Detector de Gás:</b> <span id="vDetector">C2260031016</span> | 
+                <b>Última Calibração:</b> <span id="vCalibracao">02/06/2025</span> | 
+                <b>Regulamentação:</b> PORTARIA INMETRO 445/2021 | <b>Procedimento:</b> PT 001
+            </p>
+
+            <div class="cert-section-title">APROVAÇÃO & OBSERVAÇÕES</div>
+            <p style="margin: 4px 0;"><b>APROVAÇÃO:</b> O equipamento acima foi descontaminado indicando 0% do limite inferior de explosividade e dentro dos limites toleráveis de oxigênio.</p>
+            <p style="margin: 4px 0; background: #f1f5f9; padding: 4px;">
+                <b>OBSERVAÇÕES:</b> NÃO ESTÁ APTO A ARMAZENAR/TRANSPORTAR ÁGUA POTÁVEL. EXECUTAR SERVIÇO NO MESMO DIA.<br>
+                <b>HORÁRIO DO INÍCIO DA DESCONTAMINAÇÃO:</b> <span id="vHora">13:00 HORAS</span>
+            </p>
+
+            <div style="font-size: 9px; margin-top: 8px; line-height: 1.2;">
+                <b>Notas:</b> a) Não nos responsabilizamos por serviços de terceiros; b) Reavaliar vapores se houver intervalo de tempo antes de trabalho a quente; c) Retirar acessórios de carga/descarga antes de soldas; d) Não nos responsabilizamos por contaminação posterior do produto; e) 1ª Via - Cliente / 2ª Via - IPEM/INMETRO / 3ª Via - Arquivo.
+                <p style="text-align: center; font-weight: bold; margin-top: 3px;">Equipamento descontaminado em conformidade com a Portaria Inmetro 445, de 26 de outubro de 2021.</p>
+            </div>
+
+            <div class="cert-signatures">
+                <div class="sig-line"><b>PAULO ROBERTO M. F. E SILVA</b><br><small>Ass. do Operador</small></div>
+                <div class="sig-line"><b>WESLAINE ARDISSON E SILVA</b><br><small>Ass. do Resp. Operacional</small></div>
+                <div class="sig-line">
+                    <b id="vCondutorNome">EIDER SANTOS DE CARVALHO</b><br>
+                    <small>CPF: <span id="vCondutorCPF">787.681.872-20</span></small><br>
+                    <small>Ass. do Condutor do Veículo</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    // ESTADO E PERSISTÊNCIA LOCAL (MOCK DATABASE)
+    let clientes = JSON.parse(localStorage.getItem('majopau_clientes')) || [
+        { id: 1, cnpj: '06.127.018/0001-35', razao: 'TRANSPORTADORA CONTATTO LTDA', placa: 'ELB-7C93', equip: '1327041', condutor: 'EIDER SANTOS DE CARVALHO', cpf: '787.681.872-20' }
+    ];
+
+    let certificados = JSON.parse(localStorage.getItem('majopau_certificados')) || [
+        { num: 'MPJ00004293/2026', data: '2026-09-28', razao: 'TRANSPORTADORA CONTATTO LTDA', cnpj: '06.127.018/0001-35', placa: 'ELB-7C93', condutor: 'EIDER SANTOS DE CARVALHO', cpf: '787.681.872-20', hora: '13:00 HORAS', processo: 'Com Ventilação Forçada e Água', detector: 'C2260031016', calibracao: '2025-06-02', lacre: 'Não' }
+    ];
+
+    // NAVEGAÇÃO
+    function switchTab(tabId) {
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+        document.getElementById(tabId).classList.add('active');
+        event.target.classList.add('active');
+    }
+
+    // INICIALIZAÇÃO
+    window.onload = function() {
+        renderClientes();
+        renderHistorico();
+        carregarSelectClientes();
+        document.getElementById('emissaoData').valueAsDate = new Date();
+        if(certificados.length > 0) carregarCertificadoVisualizacao(certificados[0]);
+    };
+
+    // CADASTRO DE CLIENTE
+    function salvarCliente(e) {
+        e.preventDefault();
+        const novo = {
+            id: Date.now(),
+            cnpj: document.getElementById('cadCnpj').value,
+            razao: document.getElementById('cadRazao').value,
+            placa: document.getElementById('cadPlaca').value,
+            equip: document.getElementById('cadEquipamento').value,
+            condutor: document.getElementById('cadCondutor').value,
+            cpf: document.getElementById('cadCpfCondutor').value
+        };
+        clientes.push(novo);
+        localStorage.setItem('majopau_clientes', JSON.stringify(clientes));
+        renderClientes();
+        carregarSelectClientes();
+        document.getElementById('formCliente').reset();
+        alert('Cliente cadastrado com sucesso!');
+    }
+
+    function renderClientes() {
+        const tbody = document.getElementById('clientesTableBody');
+        tbody.innerHTML = clientes.map(c => `
+            <tr>
+                <td>${c.cnpj}</td>
+                <td><b>${c.razao}</b></td>
+                <td>${c.placa}</td>
+                <td>${c.equip}</td>
+                <td>${c.condutor} (${c.cpf})</td>
+            </tr>
+        `).join('');
+    }
+
+    function carregarSelectClientes() {
+        const select = document.getElementById('selectClienteEmissao');
+        select.innerHTML = '<option value="">-- Selecione um Cliente --</option>' + 
+            clientes.map(c => `<option value="${c.id}">${c.razao} (${c.cnpj}) - Placa: ${c.placa}</option>`).join('');
+    }
+
+    // EMISSÃO DE CERTIFICADO
+    function gerarCertificado(e) {
+        e.preventDefault();
+        const clienteId = document.getElementById('selectClienteEmissao').value;
+        const cli = clientes.find(c => c.id == clienteId);
+        
+        const anoAtual = new Date().getFullYear();
+        const proximoSeq = (4293 + certificados.length).toString().padStart(8, '0');
+        const numMPJ = `MPJ${proximoSeq}/${anoAtual}`;
+
+        const novoCert = {
+            num: numMPJ,
+            data: document.getElementById('emissaoData').value,
+            razao: cli.razao,
+            cnpj: cli.cnpj,
+            placa: cli.placa,
+            condutor: cli.condutor,
+            cpf: cli.cpf,
+            hora: document.getElementById('emissaoHora').value,
+            processo: document.getElementById('emissaoProcesso').value,
+            detector: document.getElementById('emissaoDetector').value,
+            calibracao: document.getElementById('emissaoCalibracao').value,
+            lacre: document.getElementById('emissaoLacre').value
+        };
+
+        certificados.unshift(novoCert);
+        localStorage.setItem('majopau_certificados', JSON.stringify(certificados));
+        renderHistorico();
+        carregarCertificadoVisualizacao(novoCert);
+        
+        alert(`Certificado ${numMPJ} emitido com sucesso!`);
+        switchTab('tab-visualizar');
+    }
+
+    // PESQUISA E HISTÓRICO
+    function renderHistorico(lista = certificados) {
+        const tbody = document.getElementById('historicoTableBody');
+        tbody.innerHTML = lista.map(c => `
+            <tr>
+                <td><b style="color:var(--danger);">${c.num}</b></td>
+                <td>${c.data}</td>
+                <td>${c.razao}</td>
+                <td>${c.cnpj}</td>
+                <td><b>${c.placa}</b></td>
+                <td>${c.condutor}</td>
+                <td><button class="btn btn-secondary" onclick='verCertificado("${c.num}")'>📄 Abrir</button></td>
+            </tr>
+        `).join('');
+    }
+
+    function filtrarCertificados() {
+        const termo = document.getElementById('searchInput').value.toLowerCase();
+        const filtrados = certificados.filter(c => 
+            c.placa.toLowerCase().includes(termo) ||
+            c.razao.toLowerCase().includes(termo) ||
+            c.cnpj.toLowerCase().includes(termo) ||
+            c.num.toLowerCase().includes(termo)
+        );
+        renderHistorico(filtrados);
+    }
+
+    function verCertificado(numMPJ) {
+        const cert = certificados.find(c => c.num === numMPJ);
+        if(cert) {
+            carregarCertificadoVisualizacao(cert);
+            switchTab('tab-visualizar');
+        }
+    }
+
+    function carregarCertificadoVisualizacao(c) {
+        document.getElementById('vNumCertificado').innerText = c.num;
+        document.getElementById('vRazao').innerText = c.razao;
+        document.getElementById('vCnpj').innerText = c.cnpj;
+        document.getElementById('vPlaca').innerText = c.placa;
+        document.getElementById('vData').innerText = c.data;
+        document.getElementById('vProcesso').innerText = c.processo;
+        document.getElementById('vLacre').innerText = c.lacre;
+        document.getElementById('vDetector').innerText = c.detector;
+        document.getElementById('vCalibracao').innerText = c.calibracao;
+        document.getElementById('vHora').innerText = c.hora;
+        document.getElementById('vCondutorNome').innerText = c.condutor;
+        document.getElementById('vCondutorCPF').innerText = c.cpf;
+    }
+</script>
+</body>
+</html>
